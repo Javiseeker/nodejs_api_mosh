@@ -7,7 +7,7 @@ function sayHello(name) {
 sayHello('Javi');
 
 
-
+//ex
 //Window is not defined. We do not have windows in node,
 //this only goes for the browser.
 console.log(window);
