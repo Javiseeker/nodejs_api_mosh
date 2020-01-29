@@ -1,83 +1,53 @@
-const Joi = require('joi')
+const startupDebugger = require('debug')('app:startup');
+const dbDebugger = require('debug')('app:db');
+const config = require('config');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const courses = require('./routes/courses');
+const homepage = require('./routes/homepage');
 const express = require('express');
-
+const logger = require('./middleware/logger');
+const authenticator = require('./authenticator')
 const app = express();
+
+
 const port = process.env.PORT || 3000;
+
+//configuration. Not used for passwords or any improtant variables. These are stored in env vars.
+console.log('Application Name: ' + config.get('name'));
+console.log('Mail Server: ' + config.get('mail.host'));
+console.log('Mail Password: ' + config.get('mail.password'));
+//process.env.NODE_ENV // UNDEFINED, it can be dev, testing, staging, production. This is one way.
+console.log(`NODE_ENV: ${process.env.NODE_ENV}`)
+//another way to get the current environment. returns development by default.
+console.log(`app: ${app.get('env')}`)
+app.get('env')
 app.listen(port, () => console.log(`Listening on port ${port}`))
-app.use(express.json());
+app.use(express.json()); //{data:id}
+app.use(express.urlencoded({ extended : true})); // key=value&key=value
+app.use(express.static('public'));
+app.use(helmet());
+app.set('view engine', 'pug');
+app.set('views', './views'); //default. optional setting
+//aqui estoy utilizando dejando por default /api/courses. Por lo tanto lo quito en los endpoints de courses.js
+app.use('/api/courses', courses);
+//homepage
+app.use('', homepage);
 
-const courses = [
-    {id: 1, name: 'course1'},
-    {id: 2, name: 'course2'},
-    {id: 3, name: 'course3'}
-]
 
-app.get('/', (req, res) =>{
-    res.send('Hello world2');
-});
-
-app.get('/api/courses', (req, res) =>{
-    res.send(courses);
-});
-
-app.get('/api/courses/:id', (req,res)=>{
-    const course = courses.find(c => c.id === parseInt(req.params.id));
-    if (!course) return res.status(404).send('Course with the given id was not found')
-    res.send(course)
-})
-
-app.post('/api/courses', (req,res)=>{
-    const { error } = validateCourse(req.body); //getting result.error. Object Destructure
-    if  (error){
-        //400 bad request
-        res.status(400).send(result.error.details[0].message);
-        return;
-    }
-    const course = {
-        id: courses.length +1,
-        name: req.body.name
-    };
-    console.log('procesando...')
-    courses.push(course);
-    res.send(course);
-});
-
-app.put('/api/courses/:id', (req,res)=> {
-    
-    const course = courses.find(c => c.id === parseInt(req.params.id));
-    if (!course) return res.status(404).send('Course with the given id was not found')
-
-    const {error} = validateCourse(req.body); //getting result.error. Object Destructure
-    if  (error){
-        //400 bad request
-        res.status(400).send(error.details[0].message);
-        return;
-    }
-    //update course
-    course.name = req.body.name
-    //return updated course
-    res.send(course);
-
-})
-
-app.delete('/api/courses/:id', (req,res)=>{
-    //look up the course
-    const course = courses.find(c => c.id === parseInt(req.params.id));
-    if (!course) return res.status(404).send('Course with the given id was not found')
-    console.log(`entre de nuevo y mira course: ${course}`)
-
-    //delete course
-    const index = courses.indexOf(course);
-    courses.splice(index, 1);
-    res.send(course);
-})
-
-function validateCourse(course){
-    const schema = {
-        name: Joi.string().min(3).required()
-    };
-    return Joi.validate(course, schema);
+if (app.get('env') === 'development'){
+    app.use(morgan('tiny'));
+    startupDebugger('Morgan enabled...')
 }
+
+//db work...
+dbDebugger('Connected to the database...')
+
+app.use(logger);
+app.use(authenticator);
+
+
+
 
 //req.params are parameters for essential or required values.
 //req.query are parameters to provide additional data for backend services. ?sortBy=Name
